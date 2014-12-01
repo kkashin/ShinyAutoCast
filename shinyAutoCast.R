@@ -51,8 +51,17 @@ shinyAutoCast <- function(out,diags, weights, outfile){
 			#diags <- calcDiags(out)
 			session$selectedWeightList <- list()
 			session$selectedWeights <- c()
- 
- 			### send message to javascript to toggle between more / fewer details button
+			rvalues <- reactiveValues(priorWeight=NULL)
+			
+			### onFlush fxn is run right before Shiny flushes (stores previous value of weights) 
+			session$onFlush(once=FALSE, function(){
+				isolate({
+				rvalues$priorWeight <- getOptim()$weights
+				})
+			})
+			
+			
+   			### send message to javascript to toggle between more / fewer details button
  			### responsive to toggleMore button
  			observe({
  				session$sendCustomMessage(
@@ -62,6 +71,22 @@ shinyAutoCast <- function(out,diags, weights, outfile){
          			val = as.numeric(input$toggleMore)) # need as.numeric otherwise formatC throws warning
      			)
      		})
+     		
+			### on toggleMore, set other input (slider or numeric) to the one that was previously selected
+ 			observe({
+ 				if(input$toggleMore %% 2 == 0){
+ 					isolate({prevWeights <- rvalues$priorWeight})
+ 					updateSliderInput(session, "tradeoff",value = (1-prevWeights[1]))
+ 				}
+ 				else {
+ 					isolate({prevWeights <- rvalues$priorWeight})
+ 		 			updateNumericInput(session, "w_mse",value = prevWeights[1])
+		    		updateNumericInput(session, "w_age",value = prevWeights[2])
+		    		updateNumericInput(session, "w_time",value = prevWeights[3])
+		    		updateNumericInput(session, "w_agetime",value = prevWeights[4])					
+ 				}
+ 				
+			})
  
  			### toggle between select and remove button (based on whether current weight combination is already selected)
  			### reactive to changing weights, toggling input, and selectedWeights
@@ -143,12 +168,16 @@ shinyAutoCast <- function(out,diags, weights, outfile){
 
 			### get optimal forecast
  			getOptim <- reactive({
- 				if(input$toggleMore %% 2 == 0){
- 					weight.values <- c(1-input$tradeoff,input$tradeoff/3, input$tradeoff/3, input$tradeoff/3)
+ 				weight.values.slider <- c(1-input$tradeoff,input$tradeoff/3, input$tradeoff/3, input$tradeoff/3)
+ 				weight.values.detail <- c(input$w_mse, input$w_age, input$w_time, input$w_agetime)
+ 				weight.values.detail <- weight.values.detail/sum(weight.values.detail)
+ 				
+ 				# isolate toggleMore so that graphs aren't replotted when click "more details"
+ 				if(isolate(input$toggleMore) %% 2 == 0){
+ 					weight.values <- weight.values.slider
  				}
  				else {
- 					weight.values <- c(input$w_mse, input$w_age, input$w_time, input$w_agetime)
- 					weight.values <- weight.values/sum(weight.values)
+ 					weight.values <- weight.values.detail
  				}
  				
  				obj.fxn <- apply(diags, 1, function(x) sum(x*weight.values))
