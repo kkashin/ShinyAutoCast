@@ -6654,13 +6654,24 @@ margin-left:2.5% !important;
 background-color:#d0cdf3;
 }
 
-#downloadButton{
+#selectButton{
 background-color:#cdf3d0;
 }
 
-#downloadButton:hover{
+#selectButton:hover{
 background-color:#e6e6e6;
 }
+
+#removeButton{
+background-color:#f3d0cd;
+}
+
+#removeButton:hover{
+background-color:#e6e6e6;
+}
+
+
+
 
 .selectize-control.multi .selectize-input div{
 background-color:#cdf3d0;
@@ -6669,4 +6680,8 @@ background-image:linear-gradient(to bottom, #ffffff, #cdf3d0) !important;
 .selectize-control.multi .selectize-input div.active{
 background-color:#0081c2;
 background-image:linear-gradient(to bottom, #0088cc, #0077b3) !important;
+}
+
+span.jslider{
+	width: 80%;
 }

@@ -1,4 +1,4 @@
-shinyAutoCast <- function(out,diags, weights, outfile){
+shinyAutoCast <- function(out,outfile){
 	require(shiny)
 
 	shinyApp(
@@ -9,30 +9,22 @@ shinyAutoCast <- function(out,diags, weights, outfile){
   			),
   			title = "AutoCast",
   			tags$h2("AutoCast: time-series cross-sectional demographic forecasting"),
-			fluidRow(
-    			column(4,align="center", actionButton("prevButton", label = "Previous", icon=icon("arrow-left"))),
-    			column(4,align="center", actionButton("nextButton", label = "Next",icon("arrow-right"),cursor="move"))
+    		wellPanel(fluidRow(
+      			conditionalPanel(condition = "input.toggleMore == null | input.toggleMore % 2 == 0",
+      				column(8, align="left", sliderInput("tradeoff", NULL, min=0, max=1, value=0.5, step=0.01))
+      			),
+      			conditionalPanel(condition = "input.toggleMore != null & input.toggleMore % 2 == 1",
+      	  	    	column(2,align="center",div(class="pushDown",numericInput("w_mse", "Weight on fit:", 70))),
+    				column(2,align="center",numericInput("w_age", "Weight on age smoothness:", 10)),
+    				column(2,align="center",numericInput("w_time", "Weight on time smoothness:", 10)),
+    				column(2,align="center",numericInput("w_agetime", "Weight on age/time smoothness:", 10))
+    			),
+    			column(4, align="left", actionButton("toggleMore", label = "More details", icon=icon("level-down")))
     		),
-    		hr(),
-  			conditionalPanel(condition = "input.toggleMore == null | input.toggleMore % 2 == 0",
-  				fluidRow( 
-  				column(3, align="center", sliderInput("tradeoff", "Fit-Smoothness Tradeoff:", min=0, max=1, value=0.5, step=0.01))
-      		)),
-      		conditionalPanel(condition = "input.toggleMore != null & input.toggleMore % 2 == 1",
-      	  		fluidRow(
-      	  	    column(3,align="center",numericInput("w_mse", "Weight on fit:", 70)),
-    			column(3,align="center",numericInput("w_age", "Weight on age smoothness:", 10)),
-    			column(3,align="center",numericInput("w_time", "Weight on time smoothness:", 10)),
-    			column(3,align="center",numericInput("w_agetime", "Weight on age/time smoothness:", 10))
-    		)),
-    		fluidRow(
-  				column(3, align="center", actionButton("toggleMore", label = "More details", icon=icon("arrow-down")))
-            ), 
       		fluidRow(
-      			column(4, align="center",textOutput("currentWeights")),
-      			column(4, align="center", uiOutput("dynamicButton")),
-      			column(4, align="center", checkboxInput("showHistograms", label = "Show diagnostics", value = TRUE))
-      		),
+      			column(4, align="left", uiOutput("dynamicButton")),
+      			column(2, align="left", checkboxInput("showHistograms", label = "Show diagnostics", value = TRUE))
+      		)),
   			hr(),
 			fluidRow(
     			column(6,align="center", plotOutput("agePlot", height="400px")),
@@ -57,6 +49,7 @@ shinyAutoCast <- function(out,diags, weights, outfile){
 			session$onFlush(once=FALSE, function(){
 				isolate({
 				rvalues$priorWeight <- getOptim()$weights
+				print(rvalues$priorWeight)
 				})
 			})
 			
@@ -72,9 +65,19 @@ shinyAutoCast <- function(out,diags, weights, outfile){
      			)
      		})
      		
+  			observe({
+  				if(!is.null(input$tradeoff)){
+ 				session$sendCustomMessage(
+       			type = "updateSliderLabels", 
+       			message = list(
+         			val = TRUE) # need as.numeric otherwise formatC throws warning
+     			)
+     			}
+     		})
+     		
 			### on toggleMore, set other input (slider or numeric) to the one that was previously selected
  			observe({
- 				if(input$toggleMore %% 2 == 0){
+ 				if(input$toggleMore!=0 & input$toggleMore %% 2 == 0){
  					isolate({prevWeights <- rvalues$priorWeight})
  					updateSliderInput(session, "tradeoff",value = (1-prevWeights[1]))
  				}
@@ -98,10 +101,11 @@ shinyAutoCast <- function(out,diags, weights, outfile){
   					weight.values <- c(input$w_mse, input$w_age, input$w_time, input$w_agetime)
   					weight.values <- weight.values/sum(weight.values)
   				}
-  				if(paste(round(weight.values,2),collapse="-") %in% input$selectedWeights){
- 					return(actionButton("removeButton", label = "Remove",icon("minus")))
+  				weight.value.text <- paste(round(weight.values,2),collapse="-")
+  				if(weight.value.text %in% input$selectedWeights){
+ 					return(actionButton("removeButton", label = paste("Remove weights (", weight.value.text, ")", sep=""), icon("minus")))
  				} else{
- 					return(actionButton("selectButton", label = "Select",icon("plus")))
+ 					return(actionButton("selectButton", label = paste("Save weights (", weight.value.text, ")", sep=""), icon("plus")))
  				}
  			})
  			
@@ -154,7 +158,7 @@ shinyAutoCast <- function(out,diags, weights, outfile){
  			### once click on selectize item, update weight combination (responsive to clickedWeight from js)
  			observe({
  				if(!is.null(input$clickedWeight)){
- 					clickedWeights <- as.numeric(strsplit(input$clickedWeight,"-")[[1]])
+ 					clickedWeights <- as.numeric(strsplit(input$clickedWeight$weight,"-")[[1]])
 					if(isolate(input$toggleMore) %% 2 ==0){
  						updateSliderInput(session, "tradeoff",value = (1-clickedWeights[1]))
  					} else{
@@ -180,7 +184,7 @@ shinyAutoCast <- function(out,diags, weights, outfile){
  					weight.values <- weight.values.detail
  				}
  				
- 				obj.fxn <- apply(diags, 1, function(x) sum(x*weight.values))
+ 				obj.fxn <- apply(out$validation$diags, 1, function(x) sum(x*weight.values))
 				opt <- which.min(obj.fxn)
 				sigma.opt <- out$aux$sigma[opt,]
 
@@ -202,10 +206,10 @@ shinyAutoCast <- function(out,diags, weights, outfile){
  			})
  			
  			### get current weights
- 			output$currentWeights <- renderText({
- 				dat <- getOptim()
- 				return(paste(round(dat$weights,2),collapse="-"))
- 			}) 
+ 			#output$currentWeights <- renderText({
+ 			#	dat <- getOptim()
+ 			#	return(paste(round(dat$weights,2),collapse="-"))
+ 			#}) 
  			
  			### age plot
  	 		output$agePlot <- renderPlot({
