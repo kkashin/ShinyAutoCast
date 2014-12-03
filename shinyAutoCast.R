@@ -1,6 +1,15 @@
 shinyAutoCast <- function(out,outfile){
 	require(shiny)
-
+	
+	if(class(out)=="autocast"){
+		out <- list(out)
+		isList <- FALSE
+		#i <- 1
+	} else{
+		isList <- TRUE
+		forecastNames <- names(out)
+	}
+		
 	shinyApp(
 		ui = fluidPage(
   			tags$head(
@@ -9,6 +18,11 @@ shinyAutoCast <- function(out,outfile){
   			),
   			title = "AutoCast",
   			tags$h2("AutoCast: time-series cross-sectional demographic forecasting"),
+  			fluidRow(
+      			column(2,align="center", uiOutput("navPrev")),
+      			column(8, align="center", uiOutput("selectForecast")),
+      			column(2,align="center", uiOutput("navNext"))
+			),	
     		wellPanel(fluidRow(
       			conditionalPanel(condition = "input.toggleMore == null | input.toggleMore % 2 == 0",
       				column(8, align="left", sliderInput("tradeoff", NULL, min=0, max=1, value=0.5, step=0.01))
@@ -40,19 +54,122 @@ shinyAutoCast <- function(out,outfile){
 			
  		),
 		server = function(input, output, session) {
-			#diags <- calcDiags(out)
 			session$selectedWeightList <- list()
 			session$selectedWeights <- c()
 			rvalues <- reactiveValues(priorWeight=NULL)
 			
-			### onFlush fxn is run right before Shiny flushes (stores previous value of weights) 
+			############## NAVIGATION ################
+			reactivePosition <- reactiveValues(i=1)
+			
+			### render UI for prev / next buttons
+			output$navPrev <- renderUI({
+				if(isList){
+					return(actionButton("prevButton", label = "Previous", icon=icon("arrow-left")))
+				}
+				else{
+					return(invisible())
+				}
+			})
+			
+			output$navNext <- renderUI({
+				if(isList){
+					return(actionButton("nextButton", label = "Next",icon("arrow-right")))
+				}
+				else{
+					return(invisible())
+				}
+			})
+			
+			observe({
+				if(is.null(input$prevButton)){
+					return()
+				}
+				if(input$prevButton==0){		
+					return()
+				}
+				isolate({
+		    			reactivePosition$i <- reactivePosition$i-1
+		    			updateSelectInput(session, "selectForecast", selected = forecastNames[reactivePosition$i])
+		    		})
+		    		
+			})
+			
+			observe({
+				if(is.null(input$nextButton)){
+					return()
+				}
+				if(input$nextButton==0){		
+					return()
+				}
+				isolate({
+		    			reactivePosition$i <- reactivePosition$i+1
+		    			updateSelectInput(session, "selectForecast", selected = forecastNames[reactivePosition$i])
+		    		})
+		    		
+			})
+			
+			### render UI for select
+			output$selectForecast <- renderUI({
+				if(isList){
+					return(selectInput("selectForecast", label = NULL,choices= forecastNames, selected= forecastNames[1]))
+				}
+				else{
+					return(invisible())
+				}
+			})
+			
+			### when change forecast from dropdown menu, change i
+			observe({
+				if(is.null(input$selectForecast)){
+					return()
+				} else{
+					current.i<- which(forecastNames %in% input$selectForecast)
+				 	isolate({
+				 		if(reactivePosition$i == current.i){
+				 			return()
+				 		} else{
+				 			reactivePosition$i <- current.i
+				 		}
+				 	})	
+				}
+			})
+			
+			### if i changes, send message to enable or disable buttons
+		  	observe({
+		  		# add reactivity to prevButton so that it is disabled at startup; otherwise
+		  		# message is sent before button is rendered
+		  		input$prevButton
+		  		
+  				if(reactivePosition$i==1){
+  					prevDisable = TRUE
+  					nextDisable = FALSE
+  				}
+  				else if(reactivePosition$i==length(forecastNames)){
+   					prevDisable = FALSE
+  					nextDisable = TRUE					
+  				} else{
+  					prevDisable = FALSE
+  					nextDisable = FALSE			
+  				}
+     			session$sendCustomMessage(
+       				type = "disableNav", 
+       				message = list(prevDisable = prevDisable, nextDisable = nextDisable)
+     			)			
+     		})	
+						
+			############## ON FLUSH (STORE WEIGHTS) ################
+				
+			### onFlush fxn is run right before Shiny flushes (stores previous value of weights)
+			### need this in order to properly update weight input widgets when toggle between slider
+			### and input boxes (needs to remember last entered weight)
 			session$onFlush(once=FALSE, function(){
 				isolate({
 				rvalues$priorWeight <- getOptim()$weights
-				print(rvalues$priorWeight)
 				})
 			})
 			
+			
+			############## WEIGHT SELECTION ################
 			
    			### send message to javascript to toggle between more / fewer details button
  			### responsive to toggleMore button
@@ -109,15 +226,6 @@ shinyAutoCast <- function(out,outfile){
  				}
  			})
  			
- 			### define download button
- 			### responsive to download button
- 			observe({
- 				if(input$downloadButton==0){		
- 					return()
- 				}
-   				selectWeights <- input$selectedWeights #isolate later
-     			save(selectWeights, file=outfile)
- 			})
  
  			### define select button
  			### once click on select button, take current weights and send to selectize (responsive to button)
@@ -169,8 +277,24 @@ shinyAutoCast <- function(out,outfile){
  					}
  				}				
    			})
+   			
+   			
+   			############## DOWNLOAD BUTTON ################
+ 			
+ 			### define download button
+ 			### responsive to download button
+ 			observe({
+ 				if(input$downloadButton==0){		
+ 					return()
+ 				}
+   				selectWeights <- input$selectedWeights #isolate later
+     			save(selectWeights, file=outfile)
+ 			})
+ 			
+ 			
 
-			### get optimal forecast
+			############## OBJECTIVE FUNCTION CALCULATION ################
+			
  			getOptim <- reactive({
  				weight.values.slider <- c(1-input$tradeoff,input$tradeoff/3, input$tradeoff/3, input$tradeoff/3)
  				weight.values.detail <- c(input$w_mse, input$w_age, input$w_time, input$w_agetime)
@@ -184,24 +308,26 @@ shinyAutoCast <- function(out,outfile){
  					weight.values <- weight.values.detail
  				}
  				
- 				obj.fxn <- apply(out$validation$diags, 1, function(x) sum(x*weight.values))
+ 				autoObject <- out[[reactivePosition$i]]
+ 				
+ 				obj.fxn <- apply(autoObject$validation$diags, 1, function(x) sum(x*weight.values))
 				opt <- which.min(obj.fxn)
-				sigma.opt <- out$aux$sigma[opt,]
+				sigma.opt <- autoObject$aux$sigma[opt,]
 
-				yhat.df <- melt(out$validation$yhat[[opt]])
+				yhat.df <- melt(autoObject$validation$yhat[[opt]])
 				colnames(yhat.df) <- c("age","time","yhat")
-				out$yhat <- yhat.df
+				autoObject$yhat <- yhat.df
 	
 				### dat for plots
 				dat <- list()
 				dat$weights <- weight.values
 				dat$opt <- opt
-				dat$diags <- diags
-				dat$y <- out$y
-				dat$yhat <- out$yhat
-				dat$bounds <- out$bounds
-				dat$sample.frame <- out$aux$args.yourcast$sample.frame
-				dat$validation.years <- as.numeric(out$aux$holdout.years)
+				dat$diags <- autoObject$validation$diags
+				dat$y <- autoObject$y
+				dat$yhat <- autoObject$yhat
+				dat$bounds <- autoObject$bounds
+				dat$sample.frame <- autoObject$aux$args.yourcast$sample.frame
+				dat$validation.years <- as.numeric(autoObject$aux$holdout.years)
 				return(dat)
  			})
  			
@@ -210,6 +336,8 @@ shinyAutoCast <- function(out,outfile){
  			#	dat <- getOptim()
  			#	return(paste(round(dat$weights,2),collapse="-"))
  			#}) 
+ 			
+ 			############## PLOTS ################
  			
  			### age plot
  	 		output$agePlot <- renderPlot({
@@ -231,7 +359,7 @@ shinyAutoCast <- function(out,outfile){
  				names(diags.opt) <- c("MSE", "Age Arc", "Time Arc", "Age/Time Arc")
  				diags.melt <- melt(dat$diags, id=NULL)
  				diags.opt.melt <- melt(diags.opt, id=NULL)
- 				suppressMessages(print(ggplot(data=diags.melt, aes(x=value)) + geom_histogram() + facet_grid(~variable, scales="free_x") + geom_vline(data= diags.opt.melt, aes(xintercept=value), color="red", size=2, alpha=0.5) + theme_bw()))
+ 				suppressMessages(print(ggplot(data=diags.melt, aes(x=value)) + geom_histogram(position="identity") + facet_grid(~variable, scales="free_x") + geom_vline(data= diags.opt.melt, aes(xintercept=value), color="red", size=2, alpha=0.5) + scale_x_continuous("Value of Diagnostic") + scale_y_continuous("Number of Forecasts") + theme_bw()))
  			})
 		}
 	)

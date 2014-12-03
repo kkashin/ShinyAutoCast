@@ -9,7 +9,7 @@ Shiny.addCustomMessageHandler("updateDetailToggle",
     }
   );
 
-$(document).on('click', '.item', function (e) {
+$(document).on('click', '.selectize-control.multi .item', function (e) {
 	//alert("Test of button");
 	// note the RandomReactive forces reactivity even when the clicked weight combination hasn't changed from last time 
 	Shiny.onInputChange("clickedWeight", {randomReactive:Math.random(),weight:$(this).attr("data-value"),})
@@ -22,6 +22,25 @@ Shiny.addCustomMessageHandler("updateSliderLabels",
 	$(".jslider-label-to").html("<span>Smoothness</span>");
     }
 );
+
+// disable previous & next buttons if at beginning or end of list
+Shiny.addCustomMessageHandler("disableNav",
+    function(message) {
+      if(message.prevDisable){
+      	$("#prevButton").prop('disabled',true);
+      } else{
+      	$("#prevButton").prop('disabled',null);
+      }
+      if(message.nextDisable){
+      	$("#nextButton").prop('disabled',true);
+      } else{
+      	$("#nextButton").prop('disabled',null);
+      }      
+    }
+  );
+  
+
+
 
 	
 /* fix for height */
