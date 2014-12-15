@@ -6641,6 +6641,7 @@ input[type="checkbox"] {
 height:40px !important;
 }
 
+
 .selectize-control{
 margin-left:2.5% !important;
 width:95% !important;
@@ -6671,13 +6672,16 @@ background-color:#e6e6e6;
 }
 
 
+.selectedWeights .selectize-control {
+	margin-left: 0% !important;
+	width: 100% !important;
+}
 
-
-.selectize-control.multi .selectize-input div{
+.selectedWeights .selectize-control.multi .selectize-input div{
 background-color:#cdf3d0;
 background-image:linear-gradient(to bottom, #ffffff, #cdf3d0) !important;
 }
-.selectize-control.multi .selectize-input div.active{
+.selectedWeights .selectize-control.multi .selectize-input div.active{
 background-color:#0081c2;
 background-image:linear-gradient(to bottom, #0088cc, #0077b3) !important;
 }

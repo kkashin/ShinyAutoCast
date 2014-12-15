@@ -9,12 +9,19 @@ shinyAutoCast <- function(out,outfile){
 		isList <- TRUE
 		forecastNames <- names(out)
 	}
+	times <- unique(out[[1]]$yhat$time)
+	ages <- unique(out[[1]]$yhat$age)
 		
 	shinyApp(
 		ui = fluidPage(
   			tags$head(
     		includeCSS('/Users/Kostya/Desktop/Git/shinyAutoCast/css/bootstrap.css'),
-    		includeScript('/Users/Kostya/Desktop/Git/shinyAutoCast/js/autocast.js')
+    		includeScript('http://code.highcharts.com/highcharts.js'),
+    			includeScript('http://code.highcharts.com/modules/no-data-to-display.js'),
+    			includeScript('http://code.highcharts.com/modules/data.js'),
+    			includeScript('http://code.highcharts.com/modules/exporting.js'),
+    		includeScript('/Users/Kostya/Desktop/Git/shinyAutoCast/js/autocast.js'),
+    		includeScript('/Users/Kostya/Desktop/Git/shinyAutoCast/js/ageplot.js')
   			),
   			title = "AutoCast",
   			tags$h2("AutoCast: time-series cross-sectional demographic forecasting"),
@@ -37,7 +44,7 @@ shinyAutoCast <- function(out,outfile){
     		),
       		fluidRow(
       			column(4, align="left", uiOutput("dynamicButton")),
-      			column(2, align="left", checkboxInput("showHistograms", label = "Show diagnostics", value = TRUE))
+      			column(2, align="left", checkboxInput("showHistograms", label = "Show diagnostics", value = FALSE))
       		)),
   			hr(),
 			fluidRow(
@@ -48,10 +55,26 @@ shinyAutoCast <- function(out,outfile){
     			fluidRow(column(12, align="center", plotOutput("histograms", height="300px"))
       		)),
     		hr(),
-    		fluidRow(column(12,selectizeInput("selectedWeights", "Saved weight combinations:", choices=c(),multiple=TRUE, options=list(create=TRUE)))),
-    		fluidRow(column(12,align="center",actionButton("downloadButton", label = "Save as .RData file", icon=icon("download")))),
-    		hr()
-			
+    		wellPanel(
+    		fluidRow(column(12,align="left",tags$h4("Selected weights:"))),
+    		fluidRow(class="selectedWeights",
+    		         column(10,selectizeInput("selectedWeights", label=NULL, choices=c(),multiple=TRUE, options=list(create=TRUE))),
+    		         column(2,align="center",actionButton("downloadButton", label = "Save as .RData file", icon=icon("download")))
+    		)),
+      		fluidRow(
+    			column(6, align="center", tags$h4("Time Profile of Selected Forecasts")),
+    			column(6, align="center", tags$h4("Age Profile of Selected Forecasts"))
+    		),
+    		fluidRow(
+    			column(6, align="left", selectizeInput("selectedAges", "Select ages:", choices=ages,multiple=TRUE, options=list(create=FALSE), selected=ages[length(ages)])),
+    			column(6, align="left", selectizeInput("selectedTimes", "Select times:", choices=times,multiple=TRUE, options=list(create=FALSE), selected=times[length(times)]))
+    		),
+    		fluidRow(
+    			column(6,align="center", tags$div(id="timeplot", style="width: 100%; margin: 0 auto")),
+    			column(6,align="center", tags$div(id="ageplot", style="width: 100%; margin: 0 auto"))
+    		),
+    		hr(),
+    		fluidRow(column(12, align="left", tags$p("Copyright 2014 Konstantin Kashin and Gary King. Software licensed under ", tags$a(href="http://creativecommons.org/licenses/by-nc/3.0/", "Creative Commons Attribution-NonCommercial 3.0 License"),".")))
  		),
 		server = function(input, output, session) {
 			session$selectedWeightList <- list()
@@ -361,6 +384,92 @@ shinyAutoCast <- function(out,outfile){
  				diags.opt.melt <- melt(diags.opt, id=NULL)
  				suppressMessages(print(ggplot(data=diags.melt, aes(x=value)) + geom_histogram(position="identity") + facet_grid(~variable, scales="free_x") + geom_vline(data= diags.opt.melt, aes(xintercept=value), color="red", size=2, alpha=0.5) + scale_x_continuous("Value of Diagnostic") + scale_y_continuous("Number of Forecasts") + theme_bw()))
  			})
+
+
+ 			### age and time profiles for selected weight combinations
+ 			observe({
+ 				# pull correct forecast, ages, times, and scales
+ 				autoObject <- out[[reactivePosition$i]]
+ 				ages <- autoObject$aux$ages
+ 				times <- autoObject$aux$times
+ 				holdout.years <- autoObject$aux$holdout.years
+ 				ageScale <- gradient_n_pal(colours=rainbow(7), values=ages)
+ 				timeScale <- gradient_n_pal(colours=rainbow(7), values= times)
+
+ 				if(!is.null(input$selectedWeights)){
+ 					
+ 				### get list of selected forecasts (based on optimizing objective fxn)
+ 				selectList <- lapply(input$selectedWeights,function(x){
+ 					weight.values <- as.numeric(strsplit(x,"-")[[1]])	
+ 					obj.fxn <- apply(autoObject$validation$diags, 1, function(x) sum(x*weight.values))
+ 					opt <- which.min(obj.fxn)
+ 					sigma.opt <- autoObject$aux$sigma[opt,]
+ 					yhat <- autoObject$validation$yhat[[opt]]
+ 					return(list(weight=x, opt=opt, sigma=sigma.opt, yhat=yhat))
+ 	 				})
+
+
+ 	 			### get data for time profile (for selected ages)
+ 	 			outTime <- lapply(input$selectedAges, function(a){
+ 	 					# observed data
+ 	 					ytemp <- autoObject$y[autoObject$y$age==a,]
+ 	 					yvalid <- ytemp[ytemp$time %in% holdout.years,]
+ 	 					yobs <- ytemp[!(ytemp$time %in% holdout.years),]
+ 	 					
+ 	 					yvalidVals <- apply(yvalid, MARGIN=1, function(x) list(x=as.numeric(x[2]), y=as.numeric(x[3])))
+ 	 					names(yvalidVals) <- NULL
+ 	 					
+  	 					yobsVals <- apply(yobs, MARGIN=1, function(x) list(x=as.numeric(x[2]), y=as.numeric(x[3])))
+ 	 					names(yobsVals) <- NULL	 					
+ 	 					
+ 	 					yobsList <- list(data=yobsVals, name=a, color=ageScale(as.numeric(a)), datatype="Observed", age=a, type="scatter", marker=list(radius=2,symbol="circle"))
+ 	 					yvalidList <- list(data=yvalidVals, name=paste(a,"valid",sep="-"), linkedTo=':previous', color=ageScale(as.numeric(a)), age=a, datatype="Holdout", type="scatter", marker=list(symbol="cross", lineWidth=1, lineColor=NULL))
+ 	 					
+ 	 					out <- list(yobsList, yvalidList)
+
+ 	 					# get list of forecast data
+ 	 					fcasts <- lapply(selectList, function(f){
+ 	 						fa <- f$yhat[a,]
+ 	 						vals <- lapply(1:length(fa), function(i) list(x=as.integer(names(fa[i])),y=as.numeric(fa[i])))
+ 	 						return(list(data=vals,type='line', name=paste('Age75',f$weight,sep="-"), weight=f$weight, sigmaHa=as.numeric(f$sigma[1]),sigmaHt=as.numeric(f$sigma[2]), sigmaHat=as.numeric(f$sigma[3]), age=a, datatype="Forecast", linkedTo=":previous", color=ageScale(as.numeric(a)), marker=list(enabled=FALSE,symbol="circle"), enableMouseTracking=TRUE, states=list(hover=list(lineWidth=0))))
+ 	 					})
+ 	 					names(fcasts) <- NULL
+ 	 					
+ 	 					out <- append(out, fcasts)
+ 	 					return(out)
+ 	 				})
+ 			outTime <- unlist(outTime,recursive=F) 		
+ 			
+ 			
+ 			### get data for age profile (for selected times)
+ 	 		outAge <- lapply(input$selectedTimes, function(y){
+ 	 					# get list of forecast data
+ 	 					fcasts <- lapply(selectList, function(f){
+ 	 						fa <- f$yhat[,y]
+ 	 						vals <- lapply(1:length(fa), function(i) list(as.integer(names(fa[i])),as.numeric(fa[i])))
+ 	 						return(list(weight=f$weight, sigma=paste(f$sigma,collapse="-"), data=vals,type='line', name=paste(y,f$weight,sep="-"), time=y, linkedTo=":previous", color=timeScale(as.numeric(y)), marker=list(enabled=FALSE, symbol="circle"), enableMouseTracking=TRUE, states=list(hover=list(lineWidth=2))))
+ 	 					})
+ 	 					# fix to have unlinked legend & clean label for first weight combo in time 
+ 	 					names(fcasts) <- NULL
+ 	 					fcasts[[1]]$linkedTo <- NULL
+ 	 					fcasts[[1]]$name <- y
+ 	 					
+ 	 					#out <- append(out, fcasts)
+ 	 					return(fcasts)
+ 	 				})
+ 			outAge <- unlist(outAge,recursive=F) 	
+ 			
+ 			
+ 			session$sendCustomMessage(
+       			type = "selectedWeightPlots", 
+       			message = list(
+         			dataTime = outTime,
+         			dataAge = outAge) # need as.numeric otherwise formatC throws warning
+     			)
+     			} # end of !is.null(selectedWeights)
+     		}) # end of observe
+
+     		
 		}
 	)
 }
