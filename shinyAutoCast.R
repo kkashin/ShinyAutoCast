@@ -9,25 +9,22 @@ shinyAutoCast <- function(out,outfile){
 		isList <- TRUE
 		forecastNames <- names(out)
 	}
-	times <- unique(out[[1]]$yhat$time)
-	ages <- unique(out[[1]]$yhat$age)
 		
 	shinyApp(
 		ui = fluidPage(
   			tags$head(
-    		includeCSS('/Users/Kostya/Desktop/Git/shinyAutoCast/css/bootstrap.css'),
-    		includeScript('http://code.highcharts.com/highcharts.js'),
+    			includeCSS('/Users/Kostya/Desktop/Git/shinyAutoCast/css/bootstrap.css'),
+    			includeScript('http://code.highcharts.com/highcharts.js'),
     			includeScript('http://code.highcharts.com/modules/no-data-to-display.js'),
     			includeScript('http://code.highcharts.com/modules/data.js'),
     			includeScript('http://code.highcharts.com/modules/exporting.js'),
-    		includeScript('/Users/Kostya/Desktop/Git/shinyAutoCast/js/autocast.js'),
-    		includeScript('/Users/Kostya/Desktop/Git/shinyAutoCast/js/ageplot.js')
-  			),
+    			includeScript('/Users/Kostya/Desktop/Git/shinyAutoCast/js/autocast.js')
+    		),
   			title = "AutoCast",
   			tags$h2("AutoCast: time-series cross-sectional demographic forecasting"),
   			fluidRow(
       			column(2,align="center", uiOutput("navPrev")),
-      			column(8, align="center", uiOutput("selectForecast")),
+      			column(8,align="center", uiOutput("selectForecast")),
       			column(2,align="center", uiOutput("navNext"))
 			),	
     		wellPanel(fluidRow(
@@ -66,15 +63,15 @@ shinyAutoCast <- function(out,outfile){
     			column(6, align="center", tags$h4("Age Profile of Selected Forecasts"))
     		),
     		fluidRow(
-    			column(6, align="left", selectizeInput("selectedAges", "Select ages:", choices=ages,multiple=TRUE, options=list(create=FALSE), selected=ages[length(ages)])),
-    			column(6, align="left", selectizeInput("selectedTimes", "Select times:", choices=times,multiple=TRUE, options=list(create=FALSE), selected=times[length(times)]))
+    			column(6, align="left", selectizeInput("selectedAges", "Select ages:", choices=NULL,multiple=TRUE, options=list(create=FALSE), selected=NULL)),
+    			column(6, align="left", selectizeInput("selectedTimes", "Select times:", choices=NULL,multiple=TRUE, options=list(create=FALSE), selected=NULL))
     		),
     		fluidRow(
     			column(6,align="center", tags$div(id="timeplot", style="width: 100%; margin: 0 auto")),
     			column(6,align="center", tags$div(id="ageplot", style="width: 100%; margin: 0 auto"))
     		),
     		hr(),
-    		fluidRow(column(12, align="left", tags$p("Copyright 2014 Konstantin Kashin and Gary King. Software licensed under ", tags$a(href="http://creativecommons.org/licenses/by-nc/3.0/", "Creative Commons Attribution-NonCommercial 3.0 License"),".")))
+    		fluidRow(column(12, align="left", tags$p("© 2014 Konstantin Kashin and Gary King. Software licensed under ", tags$a(href="http://creativecommons.org/licenses/by-nc/3.0/", "Creative Commons Attribution-NonCommercial 3.0 License"),".")))
  		),
 		server = function(input, output, session) {
 			session$selectedWeightList <- list()
@@ -83,7 +80,7 @@ shinyAutoCast <- function(out,outfile){
 			
 			############## NAVIGATION ################
 			reactivePosition <- reactiveValues(i=1)
-			
+
 			### render UI for prev / next buttons
 			output$navPrev <- renderUI({
 				if(isList){
@@ -177,9 +174,11 @@ shinyAutoCast <- function(out,outfile){
      			session$sendCustomMessage(
        				type = "disableNav", 
        				message = list(prevDisable = prevDisable, nextDisable = nextDisable)
-     			)			
-     		})	
-						
+     			)		
+     		})
+     		
+     		
+
 			############## ON FLUSH (STORE WEIGHTS) ################
 				
 			### onFlush fxn is run right before Shiny flushes (stores previous value of weights)
@@ -390,12 +389,37 @@ shinyAutoCast <- function(out,outfile){
  			observe({
  				# pull correct forecast, ages, times, and scales
  				autoObject <- out[[reactivePosition$i]]
- 				ages <- autoObject$aux$ages
- 				times <- autoObject$aux$times
- 				holdout.years <- autoObject$aux$holdout.years
- 				ageScale <- gradient_n_pal(colours=rainbow(7), values=ages)
- 				timeScale <- gradient_n_pal(colours=rainbow(7), values= times)
+ 				selectedAges <- input$selectedAges
+ 				selectedTimes <- input$selectedTimes
+ 				
+ 				
+ 				isolate({ 					
+				 	ages <- autoObject$aux$ages
+				 	times <- autoObject$aux$times
+				 	holdout.years <- as.numeric(autoObject$aux$holdout)
 
+				 	selectedAges <- selectedAges[selectedAges %in% ages]
+				 	if(is.null(selectedAges)){
+				 		selectedAges <- ages[c(1,length(ages))]
+				 	}
+				 	selectedTimes <- selectedTimes[selectedTimes %in% times]
+				 	if(is.null(selectedTimes)){
+				 		selectedTimes <- times[c(1,length(times))]
+				 	}
+
+				 	### note: currently having this here makes this whole fxn fire twice when change forecast
+ 					updateSelectInput(session, "selectedAges", choices = ages, selected = selectedAges)
+      				updateSelectInput(session, "selectedTimes", choices = times, selected = selectedTimes)
+      				
+      				# reorder selected ages and times
+ 					selectedAges <- sort(selectedAges)
+ 					selectedTimes <- sort(selectedTimes)
+				 })
+ 				
+ 				
+ 				ageScale <- gradient_n_pal(colours=rainbow(7), values=ages)
+ 				timeScale <- gradient_n_pal(colours=rainbow(7), values=times)
+				
  				if(!is.null(input$selectedWeights)){
  					
  				### get list of selected forecasts (based on optimizing objective fxn)
@@ -410,7 +434,7 @@ shinyAutoCast <- function(out,outfile){
 
 
  	 			### get data for time profile (for selected ages)
- 	 			outTime <- lapply(input$selectedAges, function(a){
+ 	 			outTime <- lapply(selectedAges, function(a){
  	 					# observed data
  	 					ytemp <- autoObject$y[autoObject$y$age==a,]
  	 					yvalid <- ytemp[ytemp$time %in% holdout.years,]
@@ -440,21 +464,20 @@ shinyAutoCast <- function(out,outfile){
  	 				})
  			outTime <- unlist(outTime,recursive=F) 		
  			
- 			
+ 			# 
  			### get data for age profile (for selected times)
- 	 		outAge <- lapply(input$selectedTimes, function(y){
+ 	 		outAge <- lapply(selectedTimes, function(t){
  	 					# get list of forecast data
  	 					fcasts <- lapply(selectList, function(f){
- 	 						fa <- f$yhat[,y]
+ 	 						fa <- f$yhat[,t]
  	 						vals <- lapply(1:length(fa), function(i) list(as.integer(names(fa[i])),as.numeric(fa[i])))
- 	 						return(list(weight=f$weight, sigma=paste(f$sigma,collapse="-"), data=vals,type='line', name=paste(y,f$weight,sep="-"), time=y, linkedTo=":previous", color=timeScale(as.numeric(y)), marker=list(enabled=FALSE, symbol="circle"), enableMouseTracking=TRUE, states=list(hover=list(lineWidth=2))))
+ 	 						return(list(weight=f$weight, sigma=paste(f$sigma,collapse="-"), data=vals,type='line', name=paste(t,f$weight,sep="-"), time=t, linkedTo=":previous", color=timeScale(as.numeric(t)), marker=list(enabled=FALSE, symbol="circle"), enableMouseTracking=TRUE, states=list(hover=list(lineWidth=2))))
  	 					})
  	 					# fix to have unlinked legend & clean label for first weight combo in time 
  	 					names(fcasts) <- NULL
  	 					fcasts[[1]]$linkedTo <- NULL
- 	 					fcasts[[1]]$name <- y
+ 	 					fcasts[[1]]$name <- t
  	 					
- 	 					#out <- append(out, fcasts)
  	 					return(fcasts)
  	 				})
  			outAge <- unlist(outAge,recursive=F) 	
@@ -467,7 +490,7 @@ shinyAutoCast <- function(out,outfile){
          			dataAge = outAge) # need as.numeric otherwise formatC throws warning
      			)
      			} # end of !is.null(selectedWeights)
-     		}) # end of observe
+     		}) # end of observe for age and time profiles
 
      		
 		}
