@@ -56,8 +56,12 @@ var optionsTimeProfile = {
 					var table = '<table>' +
 					'<tr><td>Weights: </td>' + 
                     '<td style="text-align: right">' + this.series.options.weight + '</td></tr>' +
-                    '<tr><td>Sigma: </td>' + 
+                    '<tr><td>Sigma Age: </td>' + 
                     '<td style="text-align: right">' + this.series.options.sigmaHa + '</td></tr>' +
+                    '<tr><td>Sigma Time: </td>' + 
+                    '<td style="text-align: right">' + this.series.options.sigmaHt + '</td></tr>' +
+                    '<tr><td>Sigma Age/Time: </td>' + 
+                    '<td style="text-align: right">' + this.series.options.sigmaHat + '</td></tr>' +
                     '<tr><td>Time: </td>' + 
                     '<td style="text-align: right">' + this.x + '</td></tr>' + 
                     '<tr><td>Age: </td>' + 
@@ -120,8 +124,12 @@ var optionsAgeProfile = {
 				var table = '<table>' +
 					'<tr><td>Weights: </td>' + 
                     '<td style="text-align: right">' + this.series.options.weight + '</td></tr>' +
-                    '<tr><td>Sigma: </td>' + 
-                    '<td style="text-align: right">' + this.series.options.sigma + '</td></tr>' +
+                    '<tr><td>Sigma Age: </td>' + 
+                    '<td style="text-align: right">' + this.series.options.sigmaHa + '</td></tr>' +
+                    '<tr><td>Sigma Time: </td>' + 
+                    '<td style="text-align: right">' + this.series.options.sigmaHt + '</td></tr>' +
+                    '<tr><td>Sigma Age/Time: </td>' + 
+                    '<td style="text-align: right">' + this.series.options.sigmaHat + '</td></tr>' +
                     '<tr><td>Time: </td>' + 
                     '<td style="text-align: right">' + this.series.options.time + '</td></tr>' + 
                     '<tr><td>Age: </td>' + 

@@ -209,7 +209,7 @@ shinyAutoCast <- function(out,outfile){
  				session$sendCustomMessage(
        			type = "updateSliderLabels", 
        			message = list(
-         			val = TRUE) # need as.numeric otherwise formatC throws warning
+         			val = TRUE)
      			)
      			}
      		})
@@ -276,8 +276,10 @@ shinyAutoCast <- function(out,outfile){
  				if(input$removeButton==0){		
  					return()
  				}
- 				session$selectedWeightList <- session$selectedWeightList[!sapply(session$selectedWeightList, function(l) identical(l,isolate(getOptim()$weights)))]
- 				session$selectedWeights <- sapply(session$selectedWeightList, function(x)  paste(round(x,2), collapse="-"))
+ 				weight.value.text <- paste(round(isolate(getOptim()$weights),2),collapse="-")
+ 				ind.remove <- which(session$selectedWeights == weight.value.text)
+ 				session$selectedWeightList <- session$selectedWeightList[-ind.remove]
+ 				session$selectedWeights <- session$selectedWeights[-ind.remove]
  					
  				updateSelectInput(session, "selectedWeights",
        				choices = session$selectedWeights,
@@ -455,7 +457,7 @@ shinyAutoCast <- function(out,outfile){
  	 					fcasts <- lapply(selectList, function(f){
  	 						fa <- f$yhat[a,]
  	 						vals <- lapply(1:length(fa), function(i) list(x=as.integer(names(fa[i])),y=as.numeric(fa[i])))
- 	 						return(list(data=vals,type='line', name=paste('Age75',f$weight,sep="-"), weight=f$weight, sigmaHa=as.numeric(f$sigma[1]),sigmaHt=as.numeric(f$sigma[2]), sigmaHat=as.numeric(f$sigma[3]), age=a, datatype="Forecast", linkedTo=":previous", color=ageScale(as.numeric(a)), marker=list(enabled=FALSE,symbol="circle"), enableMouseTracking=TRUE, states=list(hover=list(lineWidth=0))))
+ 	 						return(list(data=vals,type='line', name=paste('Age75',f$weight,sep="-"), weight=f$weight, sigmaHa=round(as.numeric(f$sigma[1]),2),sigmaHt=round(as.numeric(f$sigma[2]),2), sigmaHat=round(as.numeric(f$sigma[3]),2), age=a, datatype="Forecast", linkedTo=":previous", color=ageScale(as.numeric(a)), marker=list(enabled=FALSE,symbol="circle"), enableMouseTracking=TRUE, states=list(hover=list(lineWidth=0))))
  	 					})
  	 					names(fcasts) <- NULL
  	 					
@@ -471,7 +473,7 @@ shinyAutoCast <- function(out,outfile){
  	 					fcasts <- lapply(selectList, function(f){
  	 						fa <- f$yhat[,t]
  	 						vals <- lapply(1:length(fa), function(i) list(as.integer(names(fa[i])),as.numeric(fa[i])))
- 	 						return(list(weight=f$weight, sigma=paste(f$sigma,collapse="-"), data=vals,type='line', name=paste(t,f$weight,sep="-"), time=t, linkedTo=":previous", color=timeScale(as.numeric(t)), marker=list(enabled=FALSE, symbol="circle"), enableMouseTracking=TRUE, states=list(hover=list(lineWidth=2))))
+ 	 						return(list(weight=f$weight, sigmaHa=round(as.numeric(f$sigma[1]),2),sigmaHt=round(as.numeric(f$sigma[2]),2), sigmaHat=round(as.numeric(f$sigma[3]),2), data=vals,type='line', name=paste(t,f$weight,sep="-"), time=t, linkedTo=":previous", color=timeScale(as.numeric(t)), marker=list(enabled=FALSE, symbol="circle"), enableMouseTracking=TRUE, states=list(hover=list(lineWidth=2))))
  	 					})
  	 					# fix to have unlinked legend & clean label for first weight combo in time 
  	 					names(fcasts) <- NULL
