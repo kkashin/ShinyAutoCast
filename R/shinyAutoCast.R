@@ -13,12 +13,12 @@ shinyAutoCast <- function(out,outfile){
 	shinyApp(
 		ui = fluidPage(
   			tags$head(
-    			includeCSS('/Users/Kostya/Desktop/Git/shinyAutoCast/css/bootstrap.css'),
+    			includeCSS(system.file("css/bootstrap.css", package="ShinyAutoCast")),
     			includeScript('http://code.highcharts.com/highcharts.js'),
     			includeScript('http://code.highcharts.com/modules/no-data-to-display.js'),
     			includeScript('http://code.highcharts.com/modules/data.js'),
     			includeScript('http://code.highcharts.com/modules/exporting.js'),
-    			includeScript('/Users/Kostya/Desktop/Git/shinyAutoCast/js/autocast.js')
+    			includeScript(system.file("js/autocast.js", package="ShinyAutoCast"))
     		),
   			title = "AutoCast",
   			tags$h2("AutoCast: time-series cross-sectional demographic forecasting"),
