@@ -29,13 +29,13 @@ shinyAutoCast <- function(out,outfile){
 			),	
     		wellPanel(fluidRow(
       			conditionalPanel(condition = "input.toggleMore == null | input.toggleMore % 2 == 0",
-      				column(8, align="left", sliderInput("tradeoff", NULL, min=0, max=1, value=0.5, step=0.01))
+      				column(8, align="left", sliderInput("tradeoff", NULL, min=0, max=100, value=50, step=1))
       			),
       			conditionalPanel(condition = "input.toggleMore != null & input.toggleMore % 2 == 1",
-      	  	    	column(2,align="center",div(class="pushDown",numericInput("w_mse", "Weight on fit:", 70))),
-    				column(2,align="center",numericInput("w_age", "Weight on age smoothness:", 10)),
-    				column(2,align="center",numericInput("w_time", "Weight on time smoothness:", 10)),
-    				column(2,align="center",numericInput("w_agetime", "Weight on age/time smoothness:", 10))
+      	  	    	column(2,align="center",div(class="pushDown",numericInput("w_mse", "Weight on fit:", value=70, min=0, max=100, step=1))),
+    				column(2,align="center",numericInput("w_age", "Weight on age smoothness:", value=10, min=0, max=100, step=1)),
+    				column(2,align="center",numericInput("w_time", "Weight on time smoothness:", value=10, min=0, max=100, step=1)),
+    				column(2,align="center",numericInput("w_agetime", "Weight on age/time smoothness:", value=10, min=0, max=100, step=1))
     			),
     			column(4, align="left", actionButton("toggleMore", label = "More details", icon=icon("level-down")))
     		),
@@ -77,6 +77,7 @@ shinyAutoCast <- function(out,outfile){
 			session$selectedWeightList <- list()
 			session$selectedWeights <- c()
 			rvalues <- reactiveValues(priorWeight=NULL)
+			naWeight <- reactiveValues(ranval=0)
 			
 			############## NAVIGATION ################
 			reactivePosition <- reactiveValues(i=1)
@@ -186,6 +187,7 @@ shinyAutoCast <- function(out,outfile){
 			### and input boxes (needs to remember last entered weight)
 			session$onFlush(once=FALSE, function(){
 				isolate({
+				print("Flushing...")
 				rvalues$priorWeight <- getOptim()$weights
 				})
 			})
@@ -216,31 +218,47 @@ shinyAutoCast <- function(out,outfile){
      		
 			### on toggleMore, set other input (slider or numeric) to the one that was previously selected
  			observe({
+ 				print("TOGGLE")
  				if(input$toggleMore!=0 & input$toggleMore %% 2 == 0){
  					isolate({prevWeights <- rvalues$priorWeight})
- 					updateSliderInput(session, "tradeoff",value = (1-prevWeights[1]))
+ 					updateSliderInput(session, "tradeoff",value = (100-prevWeights[1]))
+ 					print(paste("Update slider to prev weights on toggle:", paste(prevWeights, collapse="-")))  ### TEMP
  				}
  				else {
- 					isolate({prevWeights <- rvalues$priorWeight})
- 		 			updateNumericInput(session, "w_mse",value = prevWeights[1])
-		    		updateNumericInput(session, "w_age",value = prevWeights[2])
-		    		updateNumericInput(session, "w_time",value = prevWeights[3])
-		    		updateNumericInput(session, "w_agetime",value = prevWeights[4])					
+ 					isolate({prevWeights <- rvalues$priorWeight
+ 					if(!is.null(prevWeights)){
+ 						# round to nearest tenth 
+ 						prevWeights <- round(prevWeights,1)
+ 		 				updateNumericInput(session, "w_mse",value = prevWeights[1])
+		    			updateNumericInput(session, "w_age",value = prevWeights[2])
+		    			updateNumericInput(session, "w_time",value = prevWeights[3])
+		    			updateNumericInput(session, "w_agetime",value = prevWeights[4])
+		    			print(paste("Update numeric to prev weights on toggle:", paste(prevWeights, collapse="-")))  ### TEMP
+		    			}
+		    		})		
  				}
  				
 			})
  
  			### toggle between select and remove button (based on whether current weight combination is already selected)
  			### reactive to changing weights, toggling input, and selectedWeights
+ 			### note: determine if weight combination is already selected using weights rounded to nearest tenth
  			output$dynamicButton <- renderUI({
-  				if(input$toggleMore %% 2 == 0){
-  					weight.values <- c(1-input$tradeoff,input$tradeoff/3, input$tradeoff/3, input$tradeoff/3)
+ 				print("UPDATING SELECT/REMOVE BUTTON")
+ 				# if one weight is NA, want this to refire (just put call to reactive val)
+ 				naWeight$ranval
+ 				
+ 				#isolate toggleMore because it's enough to fire if input changes -- no we want it to fire...
+  				if(input$toggleMore %% 2 == 0){ 
+  					weight.values <- c(100-input$tradeoff,input$tradeoff/3, input$tradeoff/3, input$tradeoff/3)
   				}
   				else {
   					weight.values <- c(input$w_mse, input$w_age, input$w_time, input$w_agetime)
-  					weight.values <- weight.values/sum(weight.values)
+  					weight.values[is.na(weight.values)] <- 0
+  					weight.values <- weight.values/sum(weight.values)*100
   				}
-  				weight.value.text <- paste(round(weight.values,2),collapse="-")
+  				weight.value.text <- paste(round(weight.values,1),collapse="-")
+  				print(paste("Test if existing weights already selected:", weight.value.text)) ### TEMP
   				if(weight.value.text %in% input$selectedWeights){
  					return(actionButton("removeButton", label = paste("Remove weights (", weight.value.text, ")", sep=""), icon("minus")))
  				} else{
@@ -258,8 +276,9 @@ shinyAutoCast <- function(out,outfile){
  				if(input$selectButton==0){		
  					return()
  				}
+ 				print("SELECTING WEIGHT")
  				session$selectedWeightList[[length(session$selectedWeightList)+1]] <- isolate(getOptim()$weights)
- 				session$selectedWeights <- sapply(session$selectedWeightList, function(x)  paste(round(x,2), collapse="-"))
+ 				session$selectedWeights <- sapply(session$selectedWeightList, function(x)  paste(round(x,1), collapse="-"))
  					
  				updateSelectInput(session, "selectedWeights",
        				choices = session$selectedWeights,
@@ -276,7 +295,9 @@ shinyAutoCast <- function(out,outfile){
  				if(input$removeButton==0){		
  					return()
  				}
- 				weight.value.text <- paste(round(isolate(getOptim()$weights),2),collapse="-")
+ 				print("REMOVING WEIGHT")
+ 				# round to nearest tenth
+ 				weight.value.text <- paste(round(isolate(getOptim()$weights),1),collapse="-")
  				ind.remove <- which(session$selectedWeights == weight.value.text)
  				session$selectedWeightList <- session$selectedWeightList[-ind.remove]
  				session$selectedWeights <- session$selectedWeights[-ind.remove]
@@ -289,15 +310,16 @@ shinyAutoCast <- function(out,outfile){
  			
  			### once click on selectize item, update weight combination (responsive to clickedWeight from js)
  			observe({
+ 				print("RELOADING SAVED WEIGHT ON CLICK")
  				if(!is.null(input$clickedWeight)){
  					clickedWeights <- as.numeric(strsplit(input$clickedWeight$weight,"-")[[1]])
 					if(isolate(input$toggleMore) %% 2 ==0){
- 						updateSliderInput(session, "tradeoff",value = (1-clickedWeights[1]))
+ 						updateSliderInput(session, "tradeoff",value = (100-clickedWeights[1]))
  					} else{
  						updateNumericInput(session, "w_mse",value = clickedWeights[1])
- 		    				updateNumericInput(session, "w_age",value = clickedWeights[2])
- 		    				updateNumericInput(session, "w_time",value = clickedWeights[3])
- 		    				updateNumericInput(session, "w_agetime",value = clickedWeights[4])
+ 		    			updateNumericInput(session, "w_age",value = clickedWeights[2])
+ 		    			updateNumericInput(session, "w_time",value = clickedWeights[3])
+ 		    			updateNumericInput(session, "w_agetime",value = clickedWeights[4])
  					}
  				}				
    			})
@@ -311,8 +333,10 @@ shinyAutoCast <- function(out,outfile){
  				if(input$downloadButton==0){		
  					return()
  				}
-   				selectWeights <- input$selectedWeights #isolate later
-     			save(selectWeights, file=outfile)
+ 				isolate({
+   					selectWeights <- session$selectedWeightList
+     				save(selectWeights, file=outfile)
+     			})
  			})
  			
  			
@@ -320,10 +344,17 @@ shinyAutoCast <- function(out,outfile){
 			############## OBJECTIVE FUNCTION CALCULATION ################
 			
  			getOptim <- reactive({
- 				weight.values.slider <- c(1-input$tradeoff,input$tradeoff/3, input$tradeoff/3, input$tradeoff/3)
- 				weight.values.detail <- c(input$w_mse, input$w_age, input$w_time, input$w_agetime)
- 				weight.values.detail <- weight.values.detail/sum(weight.values.detail)
+ 				weight.values.slider <- c(100-input$tradeoff,input$tradeoff/3, input$tradeoff/3, input$tradeoff/3)
+ 				weight.values.detail <- c(input$w_mse, input$w_age, input$w_time, input$w_agetime) 				
  				
+ 				observe({
+  				if(any(is.na(weight.values.detail))){
+  					naWeight$ranval <- runif(1)
+  				}
+  				})
+  				weight.values.detail[is.na(weight.values.detail)] <- 0
+  				weight.values.detail <- weight.values.detail/sum(weight.values.detail)*100
+  									
  				# isolate toggleMore so that graphs aren't replotted when click "more details"
  				if(isolate(input$toggleMore) %% 2 == 0){
  					weight.values <- weight.values.slider
@@ -331,10 +362,14 @@ shinyAutoCast <- function(out,outfile){
  				else {
  					weight.values <- weight.values.detail
  				}
+ 			 	print("OPTIMIZING")
+ 				print(paste(round(weight.values,5,"-")))
  				
  				autoObject <- out[[reactivePosition$i]]
  				
- 				obj.fxn <- apply(autoObject$validation$diags, 1, function(x) sum(x*weight.values))
+ 				#obj.fxn <- apply(autoObject$validation$diags, 1, function(x) sum(x*weight.values))
+				d <- autoObject$validation$diags
+				obj.fxn <- rowSums(d*rep(weight.values, each=nrow(d)))			
 				opt <- which.min(obj.fxn)
 				sigma.opt <- autoObject$aux$sigma[opt,]
 
@@ -355,12 +390,7 @@ shinyAutoCast <- function(out,outfile){
 				return(dat)
  			})
  			
- 			### get current weights
- 			#output$currentWeights <- renderText({
- 			#	dat <- getOptim()
- 			#	return(paste(round(dat$weights,2),collapse="-"))
- 			#}) 
- 			
+
  			############## PLOTS ################
  			
  			### age plot
@@ -408,7 +438,8 @@ shinyAutoCast <- function(out,outfile){
 				 	if(is.null(selectedTimes)){
 				 		selectedTimes <- times[c(1,length(times))]
 				 	}
-
+					
+					print("REDRAW SELECTED WEIGHT PLOTS")
 				 	### note: currently having this here makes this whole fxn fire twice when change forecast
  					updateSelectInput(session, "selectedAges", choices = ages, selected = selectedAges)
       				updateSelectInput(session, "selectedTimes", choices = times, selected = selectedTimes)
@@ -426,8 +457,10 @@ shinyAutoCast <- function(out,outfile){
  					
  				### get list of selected forecasts (based on optimizing objective fxn)
  				selectList <- lapply(input$selectedWeights,function(x){
- 					weight.values <- as.numeric(strsplit(x,"-")[[1]])	
- 					obj.fxn <- apply(autoObject$validation$diags, 1, function(x) sum(x*weight.values))
+ 					weight.values <- as.numeric(strsplit(x,"-")[[1]])
+ 					d <- autoObject$validation$diags
+					obj.fxn <- rowSums(d*rep(weight.values, each=nrow(d)))	
+ 					#obj.fxn <- apply(autoObject$validation$diags, 1, function(x) sum(x*weight.values))
  					opt <- which.min(obj.fxn)
  					sigma.opt <- autoObject$aux$sigma[opt,]
  					yhat <- autoObject$validation$yhat[[opt]]
