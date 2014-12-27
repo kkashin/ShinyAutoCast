@@ -276,7 +276,9 @@ shinyAutoCast <- function(out,outfile){
  				print("SELECTING WEIGHT")
  				w <- isolate(getOptim()$weights)
  				### assign to variable in parent environment
- 				selectedWeights[[paste(round(w,1), collapse="-")]] <<- list(weights = w)  				updateSelectInput(session, "selectedWeights",
+ 				selectedWeights[[paste(round(w,1), collapse="-")]] <<- list(weights = w)
+ 				
+ 				updateSelectInput(session, "selectedWeights",
        				choices = names(selectedWeights),
        				selected = names(selectedWeights)
      			)
