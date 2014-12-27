@@ -4,7 +4,6 @@ shinyAutoCast <- function(out,outfile){
 	if(class(out)=="autocast"){
 		out <- list(out)
 		isList <- FALSE
-		#i <- 1
 	} else{
 		isList <- TRUE
 		forecastNames <- names(out)
@@ -74,18 +73,16 @@ shinyAutoCast <- function(out,outfile){
     		fluidRow(column(12, align="left", tags$p("© 2014 Konstantin Kashin and Gary King. Software licensed under ", tags$a(href="http://creativecommons.org/licenses/by-nc/3.0/", "Creative Commons Attribution-NonCommercial 3.0 License"),".")))
  		),
 		server = function(input, output, session) {
-			session$selectedWeightList <- list()
-			session$selectedWeights <- c()
+			selectedWeights <- list()
 			rvalues <- reactiveValues(priorWeight=NULL)
 			naWeight <- reactiveValues(ranval=0)
+			reactivePosition <- reactiveValues(i=1)
 			
 			############## NAVIGATION ################
-			reactivePosition <- reactiveValues(i=1)
-
 			### render UI for prev / next buttons
 			output$navPrev <- renderUI({
 				if(isList){
-					return(actionButton("prevButton", label = "Previous", icon=icon("arrow-left")))
+					return(actionButton("prevButton", label = "Previous", icon = icon("arrow-left")))
 				}
 				else{
 					return(invisible())
@@ -94,7 +91,7 @@ shinyAutoCast <- function(out,outfile){
 			
 			output$navNext <- renderUI({
 				if(isList){
-					return(actionButton("nextButton", label = "Next",icon("arrow-right")))
+					return(actionButton("nextButton", label = "Next", icon = icon("arrow-right")))
 				}
 				else{
 					return(invisible())
@@ -102,16 +99,16 @@ shinyAutoCast <- function(out,outfile){
 			})
 			
 			observe({
-				if(is.null(input$prevButton)){
+				if (is.null(input$prevButton)){
 					return()
 				}
-				if(input$prevButton==0){		
+				if (input$prevButton == 0){		
 					return()
 				}
 				isolate({
-		    			reactivePosition$i <- reactivePosition$i-1
-		    			updateSelectInput(session, "selectForecast", selected = forecastNames[reactivePosition$i])
-		    		})
+		    		reactivePosition$i <- reactivePosition$i-1
+		    		updateSelectInput(session, "selectForecast", selected = forecastNames[reactivePosition$i])
+		    	})
 		    		
 			})
 			
@@ -123,16 +120,16 @@ shinyAutoCast <- function(out,outfile){
 					return()
 				}
 				isolate({
-		    			reactivePosition$i <- reactivePosition$i+1
-		    			updateSelectInput(session, "selectForecast", selected = forecastNames[reactivePosition$i])
-		    		})
+		    		reactivePosition$i <- reactivePosition$i+1
+		    		updateSelectInput(session, "selectForecast", selected = forecastNames[reactivePosition$i])
+		    	})
 		    		
 			})
 			
 			### render UI for select
 			output$selectForecast <- renderUI({
 				if(isList){
-					return(selectInput("selectForecast", label = NULL,choices= forecastNames, selected= forecastNames[1]))
+					return(selectInput("selectForecast", label = NULL, choices = forecastNames, selected = forecastNames[1]))
 				}
 				else{
 					return(invisible())
@@ -144,9 +141,9 @@ shinyAutoCast <- function(out,outfile){
 				if(is.null(input$selectForecast)){
 					return()
 				} else{
-					current.i<- which(forecastNames %in% input$selectForecast)
+					current.i <- which(forecastNames == input$selectForecast)
 				 	isolate({
-				 		if(reactivePosition$i == current.i){
+				 		if (reactivePosition$i == current.i){
 				 			return()
 				 		} else{
 				 			reactivePosition$i <- current.i
@@ -161,16 +158,16 @@ shinyAutoCast <- function(out,outfile){
 		  		# message is sent before button is rendered
 		  		input$prevButton
 		  		
-  				if(reactivePosition$i==1){
-  					prevDisable = TRUE
-  					nextDisable = FALSE
+  				if (reactivePosition$i==1){
+  					prevDisable <- TRUE
+  					nextDisable <- FALSE
   				}
-  				else if(reactivePosition$i==length(forecastNames)){
-   					prevDisable = FALSE
-  					nextDisable = TRUE					
+  				else if(reactivePosition$i == length(forecastNames)){
+   					prevDisable <- FALSE
+  					nextDisable <- TRUE					
   				} else{
-  					prevDisable = FALSE
-  					nextDisable = FALSE			
+  					prevDisable <- FALSE
+  					nextDisable <- FALSE			
   				}
      			session$sendCustomMessage(
        				type = "disableNav", 
@@ -210,8 +207,7 @@ shinyAutoCast <- function(out,outfile){
   				if(!is.null(input$tradeoff)){
  				session$sendCustomMessage(
        			type = "updateSliderLabels", 
-       			message = list(
-         			val = TRUE)
+       			message = list(val = TRUE)
      			)
      			}
      		})
@@ -225,7 +221,8 @@ shinyAutoCast <- function(out,outfile){
  					print(paste("Update slider to prev weights on toggle:", paste(prevWeights, collapse="-")))  ### TEMP
  				}
  				else {
- 					isolate({prevWeights <- rvalues$priorWeight
+ 					isolate({
+ 					prevWeights <- rvalues$priorWeight
  					if(!is.null(prevWeights)){
  						# round to nearest tenth 
  						prevWeights <- round(prevWeights,1)
@@ -237,7 +234,6 @@ shinyAutoCast <- function(out,outfile){
 		    			}
 		    		})		
  				}
- 				
 			})
  
  			### toggle between select and remove button (based on whether current weight combination is already selected)
@@ -249,7 +245,7 @@ shinyAutoCast <- function(out,outfile){
  				naWeight$ranval
  				
  				#isolate toggleMore because it's enough to fire if input changes -- no we want it to fire...
-  				if(input$toggleMore %% 2 == 0){ 
+  				if (input$toggleMore %% 2 == 0){ 
   					weight.values <- c(100-input$tradeoff,input$tradeoff/3, input$tradeoff/3, input$tradeoff/3)
   				}
   				else {
@@ -259,7 +255,8 @@ shinyAutoCast <- function(out,outfile){
   				}
   				weight.value.text <- paste(round(weight.values,1),collapse="-")
   				print(paste("Test if existing weights already selected:", weight.value.text)) ### TEMP
-  				if(weight.value.text %in% input$selectedWeights){
+  				
+  				if (any(input$selectedWeights==weight.value.text)){
  					return(actionButton("removeButton", label = paste("Remove weights (", weight.value.text, ")", sep=""), icon("minus")))
  				} else{
  					return(actionButton("selectButton", label = paste("Save weights (", weight.value.text, ")", sep=""), icon("plus")))
@@ -270,19 +267,18 @@ shinyAutoCast <- function(out,outfile){
  			### define select button
  			### once click on select button, take current weights and send to selectize (responsive to button)
  			observe({
- 				if(is.null(input$selectButton)){
+ 				if (is.null(input$selectButton)){
  					return()
  				} 
- 				if(input$selectButton==0){		
+ 				if (input$selectButton==0){		
  					return()
  				}
  				print("SELECTING WEIGHT")
- 				session$selectedWeightList[[length(session$selectedWeightList)+1]] <- isolate(getOptim()$weights)
- 				session$selectedWeights <- sapply(session$selectedWeightList, function(x)  paste(round(x,1), collapse="-"))
- 					
- 				updateSelectInput(session, "selectedWeights",
-       				choices = session$selectedWeights,
-       				selected = session$selectedWeights
+ 				w <- isolate(getOptim()$weights)
+ 				### assign to variable in parent environment
+ 				selectedWeights[[paste(round(w,1), collapse="-")]] <<- list(weights = w)  				updateSelectInput(session, "selectedWeights",
+       				choices = names(selectedWeights),
+       				selected = names(selectedWeights)
      			)
  			})
  
@@ -297,14 +293,13 @@ shinyAutoCast <- function(out,outfile){
  				}
  				print("REMOVING WEIGHT")
  				# round to nearest tenth
- 				weight.value.text <- paste(round(isolate(getOptim()$weights),1),collapse="-")
- 				ind.remove <- which(session$selectedWeights == weight.value.text)
- 				session$selectedWeightList <- session$selectedWeightList[-ind.remove]
- 				session$selectedWeights <- session$selectedWeights[-ind.remove]
+ 				w <- paste(round(isolate(getOptim()$weights),1),collapse="-")
+ 				### assign to variable in parent environment
+ 				selectedWeights[[w]] <<- NULL
  					
  				updateSelectInput(session, "selectedWeights",
-       				choices = session$selectedWeights,
-       				selected = session$selectedWeights
+       				choices = names(selectedWeights),
+       				selected = names(selectedWeights)
      			)
  			})			
  			
@@ -313,7 +308,7 @@ shinyAutoCast <- function(out,outfile){
  				print("RELOADING SAVED WEIGHT ON CLICK")
  				if(!is.null(input$clickedWeight)){
  					clickedWeights <- as.numeric(strsplit(input$clickedWeight$weight,"-")[[1]])
-					if(isolate(input$toggleMore) %% 2 ==0){
+					if (isolate(input$toggleMore) %% 2 == 0){
  						updateSliderInput(session, "tradeoff",value = (100-clickedWeights[1]))
  					} else{
  						updateNumericInput(session, "w_mse",value = clickedWeights[1])
@@ -334,8 +329,7 @@ shinyAutoCast <- function(out,outfile){
  					return()
  				}
  				isolate({
-   					selectWeights <- session$selectedWeightList
-     				save(selectWeights, file=outfile)
+     				save(selectedWeights, file=outfile)
      			})
  			})
  			
@@ -356,14 +350,14 @@ shinyAutoCast <- function(out,outfile){
   				weight.values.detail <- weight.values.detail/sum(weight.values.detail)*100
   									
  				# isolate toggleMore so that graphs aren't replotted when click "more details"
- 				if(isolate(input$toggleMore) %% 2 == 0){
+ 				if (isolate(input$toggleMore) %% 2 == 0){
  					weight.values <- weight.values.slider
  				}
  				else {
  					weight.values <- weight.values.detail
  				}
  			 	print("OPTIMIZING")
- 				print(paste(round(weight.values,5,"-")))
+ 				print(paste(round(weight.values,1),sep="-"))
  				
  				autoObject <- out[[reactivePosition$i]]
  				
@@ -413,7 +407,7 @@ shinyAutoCast <- function(out,outfile){
  				names(diags.opt) <- c("MSE", "Age Arc", "Time Arc", "Age/Time Arc")
  				diags.melt <- melt(dat$diags, id=NULL)
  				diags.opt.melt <- melt(diags.opt, id=NULL)
- 				suppressMessages(print(ggplot(data=diags.melt, aes(x=value)) + geom_histogram(position="identity") + facet_grid(~variable, scales="free_x") + geom_vline(data= diags.opt.melt, aes(xintercept=value), color="red", size=2, alpha=0.5) + scale_x_continuous("Value of Diagnostic") + scale_y_continuous("Number of Forecasts") + theme_bw()))
+ 				suppressMessages(print(ggplot(data=diags.melt, aes(x=value)) + geom_histogram(position = "identity") + facet_grid(~variable, scales="free_x") + geom_vline(data = diags.opt.melt, aes(xintercept=value), color = "red", size = 2, alpha = 0.5) + scale_x_continuous("Value of Diagnostic") + scale_y_continuous("Number of Forecasts") + theme_bw()))
  			})
 
 
