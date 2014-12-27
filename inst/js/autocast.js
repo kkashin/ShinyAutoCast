@@ -150,9 +150,9 @@ Shiny.addCustomMessageHandler("updateDetailToggle",
     function(message) {
       // Find button with the specified name
       if(message.val % 2 ==0){
-    		$("#" + message.name).html('<i class="fa fa-level-down"></i> More details');
+    		$("#" + message.name).html('<i class="fa fa-level-down"></i> More control');
       } else{
-      		$("#" + message.name).html('<i class="fa fa-level-up"></i> Fewer details');
+      		$("#" + message.name).html('<i class="fa fa-level-up"></i> Less control');
       }
     }
   );

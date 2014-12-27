@@ -36,7 +36,7 @@ shinyAutoCast <- function(out,outfile){
     				column(2,align="center",numericInput("w_time", "Weight on time smoothness:", value=10, min=0, max=100, step=1)),
     				column(2,align="center",numericInput("w_agetime", "Weight on age/time smoothness:", value=10, min=0, max=100, step=1))
     			),
-    			column(4, align="left", actionButton("toggleMore", label = "More details", icon=icon("level-down")))
+    			column(4, align="left", actionButton("toggleMore", label = "More control", icon=icon("level-down")))
     		),
       		fluidRow(
       			column(4, align="left", uiOutput("dynamicButton")),
@@ -215,10 +215,13 @@ shinyAutoCast <- function(out,outfile){
 			### on toggleMore, set other input (slider or numeric) to the one that was previously selected
  			observe({
  				print("TOGGLE")
- 				if(input$toggleMore!=0 & input$toggleMore %% 2 == 0){
+ 				if(is.null(input$toggleMore) | input$toggleMore==0){
+ 					return()
+ 				}
+ 				
+ 				if(input$toggleMore %% 2 == 0){
  					isolate({prevWeights <- rvalues$priorWeight})
  					updateSliderInput(session, "tradeoff",value = (100-prevWeights[1]))
- 					print(paste("Update slider to prev weights on toggle:", paste(prevWeights, collapse="-")))  ### TEMP
  				}
  				else {
  					isolate({
@@ -230,7 +233,6 @@ shinyAutoCast <- function(out,outfile){
 		    			updateNumericInput(session, "w_age",value = prevWeights[2])
 		    			updateNumericInput(session, "w_time",value = prevWeights[3])
 		    			updateNumericInput(session, "w_agetime",value = prevWeights[4])
-		    			print(paste("Update numeric to prev weights on toggle:", paste(prevWeights, collapse="-")))  ### TEMP
 		    			}
 		    		})		
  				}
@@ -255,7 +257,6 @@ shinyAutoCast <- function(out,outfile){
   					weight.values <- weight.values.detail
   				}
   				weight.value.text <- paste(round(weight.values,1),collapse="-")
-  				print(paste("Test if existing weights already selected:", weight.value.text)) ### TEMP
   				
   				if (any(input$selectedWeights==weight.value.text)){
  					return(actionButton("removeButton", label = paste("Remove weights (", weight.value.text, ")", sep=""), icon("minus")))
@@ -311,8 +312,9 @@ shinyAutoCast <- function(out,outfile){
  				print("RELOADING SAVED WEIGHT ON CLICK")
  				if(!is.null(input$clickedWeight)){
  					clickedWeights <- as.numeric(strsplit(input$clickedWeight$weight,"-")[[1]])
-					if (isolate(input$toggleMore) %% 2 == 0){
- 						updateSliderInput(session, "tradeoff",value = (100-clickedWeights[1]))
+ 					
+ 					if (isolate(input$toggleMore) %% 2 == 0){	
+     					updateSliderInput(session, "tradeoff",value = (100-clickedWeights[1]))
  					} else{
  						updateNumericInput(session, "w_mse",value = clickedWeights[1])
  		    			updateNumericInput(session, "w_age",value = clickedWeights[2])
@@ -346,7 +348,7 @@ shinyAutoCast <- function(out,outfile){
   				weight.values.detail[is.na(weight.values.detail)] <- 0
   				weight.values.detail <- weight.values.detail/sum(weight.values.detail)*100
   									
- 				# isolate toggleMore so that graphs aren't replotted when click "more details"
+ 				# isolate toggleMore so that graphs aren't replotted when click "more control"
  				if (isolate(input$toggleMore) %% 2 == 0){
  					weight.values <- weight.values.slider
  				}
@@ -354,7 +356,6 @@ shinyAutoCast <- function(out,outfile){
  					weight.values <- weight.values.detail
  				}
  			 	print("OPTIMIZING")
- 				print(paste(round(weight.values,1),sep="-"))
  				
  				autoObject <- out[[reactivePosition$i]]
  				
