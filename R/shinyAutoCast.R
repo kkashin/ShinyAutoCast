@@ -75,7 +75,7 @@ shinyAutoCast <- function(out,outfile){
 		server = function(input, output, session) {
 			selectedWeights <- list()
 			rvalues <- reactiveValues(priorWeight=NULL)
-			naWeight <- reactiveValues(ranval=0)
+			#naWeight <- reactiveValues(ranval=0)
 			reactivePosition <- reactiveValues(i=1)
 			
 			############## NAVIGATION ################
@@ -241,17 +241,18 @@ shinyAutoCast <- function(out,outfile){
  			### note: determine if weight combination is already selected using weights rounded to nearest tenth
  			output$dynamicButton <- renderUI({
  				print("UPDATING SELECT/REMOVE BUTTON")
- 				# if one weight is NA, want this to refire (just put call to reactive val)
- 				naWeight$ranval
  				
- 				#isolate toggleMore because it's enough to fire if input changes -- no we want it to fire...
-  				if (input$toggleMore %% 2 == 0){ 
-  					weight.values <- c(100-input$tradeoff,input$tradeoff/3, input$tradeoff/3, input$tradeoff/3)
+ 				weight.values.slider <- c(100-input$tradeoff,input$tradeoff/3, input$tradeoff/3, input$tradeoff/3)
+ 				weight.values.detail <- c(input$w_mse, input$w_age, input$w_time, input$w_agetime) 	
+ 				weight.values.detail[is.na(weight.values.detail)] <- 0
+ 				weight.values.detail <- weight.values.detail/sum(weight.values.detail)*100
+ 				
+ 				#isolate toggleMore because it's enough to fire if input changes
+  				if (isolate({input$toggleMore}) %% 2 == 0){ 
+  					weight.values <- weight.values.slider
   				}
   				else {
-  					weight.values <- c(input$w_mse, input$w_age, input$w_time, input$w_agetime)
-  					weight.values[is.na(weight.values)] <- 0
-  					weight.values <- weight.values/sum(weight.values)*100
+  					weight.values <- weight.values.detail
   				}
   				weight.value.text <- paste(round(weight.values,1),collapse="-")
   				print(paste("Test if existing weights already selected:", weight.value.text)) ### TEMP
@@ -342,12 +343,6 @@ shinyAutoCast <- function(out,outfile){
  			getOptim <- reactive({
  				weight.values.slider <- c(100-input$tradeoff,input$tradeoff/3, input$tradeoff/3, input$tradeoff/3)
  				weight.values.detail <- c(input$w_mse, input$w_age, input$w_time, input$w_agetime) 				
- 				
- 				observe({
-  				if(any(is.na(weight.values.detail))){
-  					naWeight$ranval <- runif(1)
-  				}
-  				})
   				weight.values.detail[is.na(weight.values.detail)] <- 0
   				weight.values.detail <- weight.values.detail/sum(weight.values.detail)*100
   									
